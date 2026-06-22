@@ -64,7 +64,6 @@ def _should_skip(info: dict) -> bool:
     content = (info.get("Content") or info.get("FilesystemType") or "").lower()
     media_type = (info.get("MediaType") or "").lower()
     is_whole = info.get("WholeDisk", False)
-    mount = info.get("MountPoint") or ""
 
     # Skip raw physical disks (disk0, disk1) — no filesystem
     if is_whole:
@@ -84,6 +83,16 @@ def _should_skip(info: dict) -> bool:
 
     # Skip iOS/simulator disk images that show up
     if "simulator" in name:
+        return True
+
+    # Skip the sealed system volume (read-only, no user files)
+    # macOS Big Sur+: Macintosh HD is SystemImage=True, Data volume is not
+    if info.get("SystemImage", False):
+        return True
+
+    # Skip APFS volumes with System role (sealed OS volume)
+    role = (info.get("APFSVolumeRole") or "").lower()
+    if role == "system":
         return True
 
     return False
@@ -125,6 +134,15 @@ def _build_disk(identifier: str, disk_type: DiskType) -> Disk | None:
         return None
 
 
+def _is_duplicate(disk: Disk, seen: set[str]) -> bool:
+    """Deduplicate by mount point — APFS sometimes exposes the same volume twice."""
+    key = disk.mount_point or disk.device_path
+    if key in seen:
+        return True
+    seen.add(key)
+    return False
+
+
 class MacDiskScanner:
     async def list_disks(self) -> list[Disk]:
         loop = asyncio.get_event_loop()
@@ -132,6 +150,7 @@ class MacDiskScanner:
 
     def _list_disks_sync(self) -> list[Disk]:
         disks: list[Disk] = []
+        seen_mounts: set[str] = set()
 
         try:
             raw = _run(["diskutil", "list", "-plist"])
@@ -145,14 +164,14 @@ class MacDiskScanner:
                 for partition in entry.get("Partitions", []):
                     pid = partition.get("DeviceIdentifier", "")
                     pdisk = _build_disk(pid, disk_type)
-                    if pdisk:
+                    if pdisk and not _is_duplicate(pdisk, seen_mounts):
                         disks.append(pdisk)
 
                 # APFS volumes inside containers
                 for volume in entry.get("APFSVolumes", []):
                     vid = volume.get("DeviceIdentifier", "")
                     vdisk = _build_disk(vid, disk_type)
-                    if vdisk:
+                    if vdisk and not _is_duplicate(vdisk, seen_mounts):
                         disks.append(vdisk)
 
         except Exception:
