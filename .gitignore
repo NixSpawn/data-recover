@@ -8,8 +8,9 @@ dist/
 *.egg-info/
 .ruff_cache/
 
-# Node / Tauri
+# Node / Bun / Tauri
 node_modules/
+bun.lockb
 app/dist/
 app/src-tauri/target/
 app/.tauri/
