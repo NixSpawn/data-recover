@@ -23,6 +23,7 @@ class ScanSession:
     files_found: int = 0
     bytes_scanned: int = 0
     total_bytes: int = 0
+    current_path: str = ""
     files: list[DeletedFile] = field(default_factory=list)
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

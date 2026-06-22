@@ -56,6 +56,11 @@
   --color-sidebar-border: hsl(220 22% 18%);
 }
 
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 @layer base {
   body {
     background-color: var(--color-background);

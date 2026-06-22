@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, ScanSearch } from "lucide-react";
 import { cn } from "@/shared/components/ui/utils";
-import type { DeletedFile } from "@/shared/types/common.types";
+import type { DeletedFile, ScanSession } from "@/shared/types/common.types";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -17,11 +17,13 @@ interface FileListProps {
   onToggleSelect: (inode: number) => void;
   onSelectAll: (files: DeletedFile[]) => void;
   onPreview: (file: DeletedFile) => void;
+  session: ScanSession | null;
+  currentPath: string;
 }
 
 type SortKey = "name" | "size" | "modified_at" | "category";
 
-export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, onPreview }: FileListProps) {
+export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, onPreview, session, currentPath }: FileListProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -65,8 +67,24 @@ export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, o
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-sm text-muted-foreground">No files found</p>
+          <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
+            {session?.status === "running" || session?.status === "pending" ? (
+              <>
+                <div className="relative">
+                  <ScanSearch className="w-10 h-10 text-primary animate-pulse" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium">Scanning for deleted files...</p>
+                  {currentPath && (
+                    <p className="text-xs font-mono text-muted-foreground max-w-xs truncate px-4">
+                      {currentPath}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No deleted files found</p>
+            )}
           </div>
         ) : (
           sorted.map((file) => (

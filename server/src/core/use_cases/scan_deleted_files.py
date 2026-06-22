@@ -19,8 +19,11 @@ class ScanDeletedFilesUseCase:
     ) -> ScanSession:
         session.start(disk.total_size)
 
+        def _on_path(path: str) -> None:
+            session.current_path = path
+
         try:
-            async for deleted_file in self._scanner.scan_deleted_files(disk, session.id):
+            async for deleted_file in self._scanner.scan_deleted_files(disk, session.id, on_path=_on_path):
                 if session.status == ScanStatus.CANCELLED:
                     break
 

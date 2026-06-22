@@ -5,6 +5,7 @@ import { scanApi } from "../api/scan.api";
 interface UseScanState {
   session: ScanSession | null;
   files: DeletedFile[];
+  currentPath: string;
   loading: boolean;
   error: string | null;
   startScan: (diskId: string) => Promise<void>;
@@ -14,6 +15,7 @@ interface UseScanState {
 export function useScan(): UseScanState {
   const [session, setSession] = useState<ScanSession | null>(null);
   const [files, setFiles] = useState<DeletedFile[]>([]);
+  const [currentPath, setCurrentPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -63,6 +65,10 @@ export function useScan(): UseScanState {
               stopStream();
               return;
             }
+            if (data.event === "progress") {
+              if (data.current_path) setCurrentPath(data.current_path);
+              return;
+            }
             setFiles((prev) => [...prev, data as DeletedFile]);
           } catch {
             // ignore parse errors
@@ -94,5 +100,5 @@ export function useScan(): UseScanState {
 
   useEffect(() => () => stopStream(), [stopStream]);
 
-  return { session, files, loading, error, startScan, cancelScan };
+  return { session, files, currentPath, loading, error, startScan, cancelScan };
 }

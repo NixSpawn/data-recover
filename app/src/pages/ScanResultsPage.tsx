@@ -17,7 +17,7 @@ interface ScanResultsPageProps {
 }
 
 export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
-  const { session, files, loading, startScan, cancelScan } = useScan();
+  const { session, files, currentPath, loading, startScan, cancelScan } = useScan();
   const { filteredFiles, activeCategories, searchQuery, toggleCategory, setSearchQuery } =
     useFileFilter(files);
   const { recovering, recoveredFiles, error: recoveryError, recover, reset: resetRecovery } =
@@ -102,6 +102,8 @@ export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
           onToggleSelect={toggleSelect}
           onSelectAll={handleSelectAll}
           onPreview={setPreviewFile}
+          session={session}
+          currentPath={currentPath}
         />
 
         <FilePreview file={previewFile} />
@@ -109,7 +111,7 @@ export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
 
       {/* Progress bar */}
       {session && (
-        <ScanProgress session={session} onCancel={cancelScan} />
+        <ScanProgress session={session} currentPath={currentPath} onCancel={cancelScan} />
       )}
 
       {/* Recover button */}

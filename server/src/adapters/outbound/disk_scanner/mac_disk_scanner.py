@@ -2,7 +2,7 @@ import asyncio
 import plistlib
 import shutil
 import subprocess
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable
 
 import pytsk3
 
@@ -197,6 +197,7 @@ class MacDiskScanner:
         self,
         disk: Disk,
         session_id: str,
+        on_path: Callable[[str], None] | None = None,
     ) -> AsyncGenerator[DeletedFile, None]:
         loop = asyncio.get_event_loop()
         queue: asyncio.Queue[DeletedFile | None] = asyncio.Queue()
@@ -205,13 +206,16 @@ class MacDiskScanner:
             try:
                 img = pytsk3.Img_Info(disk.device_path)
                 fs = pytsk3.FS_Info(img)
-                _walk(fs, fs.open_dir(path="/"), "/", disk, queue, loop)
+                _walk(fs, fs.open_dir(path="/"), "/")
             except Exception:
                 pass
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
-        def _walk(fs, directory, path: str, disk: Disk, q, lp):
+        def _walk(fs, directory, path: str):
+            if on_path:
+                loop.call_soon_threadsafe(on_path, path)
+
             for entry in directory:
                 try:
                     name = entry.info.name.name.decode("utf-8", errors="replace")
@@ -236,12 +240,12 @@ class MacDiskScanner:
                             extension=ext,
                             is_recoverable=int(meta.size) > 0,
                         )
-                        lp.call_soon_threadsafe(q.put_nowait, df)
+                        loop.call_soon_threadsafe(queue.put_nowait, df)
 
                     if meta.type == pytsk3.TSK_FS_META_TYPE_DIR:
                         try:
                             sub = fs.open_dir(inode=int(meta.addr))
-                            _walk(fs, sub, f"{path}/{name}", disk, q, lp)
+                            _walk(fs, sub, f"{path}/{name}")
                         except Exception:
                             pass
 

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import subprocess
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable
 
 import pytsk3
 
@@ -78,6 +78,7 @@ class WindowsDiskScanner:
         self,
         disk: Disk,
         session_id: str,
+        on_path: Callable[[str], None] | None = None,
     ) -> AsyncGenerator[DeletedFile, None]:
         loop = asyncio.get_event_loop()
         queue: asyncio.Queue[DeletedFile | None] = asyncio.Queue()

@@ -98,6 +98,10 @@ async def stream_scan(session_id: str):
     async def _event_generator() -> AsyncGenerator[str, None]:
         sent = 0
         while True:
+            # Emit progress heartbeat (path + count)
+            yield f"data: {json.dumps({'event': 'progress', 'files_found': session.files_found, 'current_path': session.current_path, 'status': session.status})}\n\n"
+
+            # Emit any new files found since last tick
             current = session.files
             if len(current) > sent:
                 for f in current[sent:]:
@@ -106,7 +110,7 @@ async def stream_scan(session_id: str):
                 sent = len(current)
 
             if not session.is_active:
-                yield f"data: {json.dumps({'event': 'done', 'status': session.status})}\n\n"
+                yield f"data: {json.dumps({'event': 'done', 'status': session.status, 'files_found': session.files_found})}\n\n"
                 break
 
             await asyncio.sleep(0.5)

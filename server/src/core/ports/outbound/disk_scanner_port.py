@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable
 
 from ...domain.entities.deleted_file import DeletedFile
 from ...domain.entities.disk import Disk
@@ -15,5 +15,6 @@ class DiskScannerPort(ABC):
         self,
         disk: Disk,
         session_id: str,
+        on_path: Callable[[str], None] | None = None,
     ) -> AsyncGenerator[DeletedFile, None]:
         ...

@@ -1,5 +1,5 @@
 import sys
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable
 
 from ....core.domain.entities.deleted_file import DeletedFile
 from ....core.domain.entities.disk import Disk
@@ -24,6 +24,7 @@ class PlatformDiskScanner(DiskScannerPort):
         self,
         disk: Disk,
         session_id: str,
+        on_path: Callable[[str], None] | None = None,
     ) -> AsyncGenerator[DeletedFile, None]:
-        async for f in self._impl.scan_deleted_files(disk, session_id):
+        async for f in self._impl.scan_deleted_files(disk, session_id, on_path=on_path):
             yield f
