@@ -47,7 +47,12 @@ export function DiskCard({ disk, selected, onSelect }: DiskCardProps) {
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold truncate">{disk.name}</p>
-          <p className="text-xs text-muted-foreground">{disk.filesystem}</p>
+          <p className="text-xs text-muted-foreground">
+            {disk.filesystem}
+            {disk.mount_point && (
+              <span className="ml-1 opacity-60">· {disk.mount_point}</span>
+            )}
+          </p>
         </div>
       </div>
 
