@@ -29,6 +29,15 @@ _SKIP_CONTENT_TYPES = {
     "microsoft basic data",
 }
 
+# Mount points that belong to macOS internals, not user data
+_SKIP_MOUNT_POINTS = {
+    "/",                          # sealed system snapshot (disk1s5s1)
+    "/System/Volumes/Preboot",
+    "/System/Volumes/VM",
+    "/System/Volumes/Update",
+    "/System/Volumes/xarts",
+}
+
 
 def _run(cmd: list[str]) -> bytes:
     result = subprocess.run(cmd, capture_output=True, check=True)
@@ -59,14 +68,29 @@ def _get_used_space(mount_point: str | None, info: dict) -> int:
     return 0
 
 
-def _should_skip(info: dict) -> bool:
+def _should_skip(info: dict, identifier: str) -> bool:
     name = (info.get("VolumeName") or "").lower()
     content = (info.get("Content") or info.get("FilesystemType") or "").lower()
     media_type = (info.get("MediaType") or "").lower()
+    mount = info.get("MountPoint") or ""
     is_whole = info.get("WholeDisk", False)
 
     # Skip raw physical disks (disk0, disk1) — no filesystem
     if is_whole:
+        return True
+
+    # Skip APFS snapshots — identifier pattern diskXsYsZ (three s-segments)
+    # e.g. disk1s5s1 is a snapshot of disk1s5
+    parts = identifier.replace("disk", "").split("s")
+    if len(parts) >= 3:
+        return True
+
+    # Skip volumes with no mount point — not accessible to the user
+    if not mount:
+        return True
+
+    # Skip known macOS internal mount points
+    if mount in _SKIP_MOUNT_POINTS:
         return True
 
     # Skip known system-only APFS volume names
@@ -81,18 +105,8 @@ def _should_skip(info: dict) -> bool:
     if "disk image" in name or media_type == "disk image":
         return True
 
-    # Skip iOS/simulator disk images that show up
+    # Skip iOS/simulator volumes
     if "simulator" in name:
-        return True
-
-    # Skip the sealed system volume (read-only, no user files)
-    # macOS Big Sur+: Macintosh HD is SystemImage=True, Data volume is not
-    if info.get("SystemImage", False):
-        return True
-
-    # Skip APFS volumes with System role (sealed OS volume)
-    role = (info.get("APFSVolumeRole") or "").lower()
-    if role == "system":
         return True
 
     return False
@@ -102,7 +116,7 @@ def _build_disk(identifier: str, disk_type: DiskType) -> Disk | None:
     try:
         info = _diskutil_info(identifier)
 
-        if _should_skip(info):
+        if _should_skip(info, identifier):
             return None
 
         fs_raw = (info.get("FilesystemType") or info.get("Content") or "").lower()
