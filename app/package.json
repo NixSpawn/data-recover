@@ -7,9 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "bunx tauri",
-    "tauri:dev": "bunx tauri dev",
-    "tauri:build": "bunx tauri build",
+    "tauri": "bun x tauri",
+    "tauri:dev": "bun x tauri dev",
+    "tauri:build": "bun x tauri build",
     "lint": "eslint . --ext ts,tsx",
     "type-check": "tsc --noEmit"
   },
