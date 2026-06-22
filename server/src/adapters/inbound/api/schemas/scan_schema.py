@@ -1,8 +1,8 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-from ....core.domain.entities.deleted_file import FileCategory
-from ....core.domain.entities.scan_session import ScanStatus
+from .....core.domain.entities.deleted_file import FileCategory
+from .....core.domain.entities.scan_session import ScanStatus
 
 
 class DeletedFileResponse(BaseModel):

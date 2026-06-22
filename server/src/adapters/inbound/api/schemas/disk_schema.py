@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from ....core.domain.entities.disk import DiskType, FilesystemType
+from .....core.domain.entities.disk import DiskType, FilesystemType
 
 
 class DiskResponse(BaseModel):
