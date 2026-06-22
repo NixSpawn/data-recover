@@ -99,7 +99,7 @@ async def stream_scan(session_id: str):
         sent = 0
         while True:
             # Emit progress heartbeat (path + count)
-            yield f"data: {json.dumps({'event': 'progress', 'files_found': session.files_found, 'current_path': session.current_path, 'status': session.status})}\n\n"
+            yield f"data: {json.dumps({'event': 'progress', 'files_found': session.files_found, 'current_path': session.current_path, 'status': session.status, 'error_message': session.error_message})}\n\n"
 
             # Emit any new files found since last tick
             current = session.files

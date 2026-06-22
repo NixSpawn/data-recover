@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Search } from "lucide-react";
 import type { DeletedFile, Disk } from "@/shared/types/common.types";
 import { useScan } from "@/features/file-scanner/hooks/useScan";
@@ -9,7 +9,7 @@ import { FileList } from "@/features/file-scanner/components/FileList";
 import { FilePreview } from "@/features/file-scanner/components/FilePreview";
 import { ScanProgress } from "@/features/file-scanner/components/ScanProgress";
 import { RecoveryModal } from "@/features/file-recovery/components/RecoveryModal";
-import { useEffect } from "react";
+import { useSettings } from "@/shared/context/SettingsContext";
 
 interface ScanResultsPageProps {
   disk: Disk;
@@ -17,7 +17,8 @@ interface ScanResultsPageProps {
 }
 
 export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
-  const { session, files, currentPath, loading, startScan, cancelScan } = useScan();
+  const { t } = useSettings();
+  const { session, files, currentPath, scannedPaths, error: scanError, startScan, cancelScan } = useScan();
   const { filteredFiles, activeCategories, searchQuery, toggleCategory, setSearchQuery } =
     useFileFilter(files);
   const { recovering, recoveredFiles, error: recoveryError, recover, reset: resetRecovery } =
@@ -70,7 +71,7 @@ export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Return to Home
+          {t.scan.returnToHome}
         </button>
         <span className="text-border">|</span>
         <span className="text-sm font-medium">{disk.name}</span>
@@ -82,7 +83,7 @@ export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search files or folders"
+            placeholder={t.scan.searchPlaceholder}
             className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring w-48"
           />
         </div>
@@ -104,6 +105,8 @@ export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
           onPreview={setPreviewFile}
           session={session}
           currentPath={currentPath}
+          scannedPaths={scannedPaths}
+          scanError={scanError}
         />
 
         <FilePreview file={previewFile} />
@@ -118,13 +121,13 @@ export function ScanResultsPage({ disk, onBack }: ScanResultsPageProps) {
       {selectedInodes.size > 0 && session && (
         <div className="px-6 py-3 border-t border-border bg-card/50 flex items-center justify-between flex-shrink-0">
           <span className="text-sm text-muted-foreground">
-            {selectedInodes.size.toLocaleString()} file{selectedInodes.size !== 1 ? "s" : ""} selected
+            {selectedInodes.size.toLocaleString()} {t.scan.files} {t.scan.selected}
           </span>
           <button
             onClick={() => setShowRecoveryModal(true)}
             className="px-6 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
           >
-            Recover
+            {t.scan.recover}
           </button>
         </div>
       )}

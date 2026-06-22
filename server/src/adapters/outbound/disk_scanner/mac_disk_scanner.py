@@ -135,7 +135,7 @@ def _build_disk(identifier: str, disk_type: DiskType) -> Disk | None:
         return Disk(
             id=identifier,
             name=name,
-            device_path=f"/dev/{identifier}",
+            device_path=f"/dev/r{identifier}",
             total_size=total,
             used_size=used,
             filesystem=fs,
@@ -204,11 +204,25 @@ class MacDiskScanner:
 
         def _scan():
             try:
+                print(f"[scanner] opening {disk.device_path}", flush=True)
                 img = pytsk3.Img_Info(disk.device_path)
+                print(f"[scanner] Img_Info OK, opening filesystem", flush=True)
                 fs = pytsk3.FS_Info(img)
+                print(f"[scanner] FS_Info OK, type={fs.info.ftype}, walking /", flush=True)
                 _walk(fs, fs.open_dir(path="/"), "/")
-            except Exception:
-                pass
+                print(f"[scanner] walk complete", flush=True)
+            except OSError as exc:
+                print(f"[scanner] OSError: {exc}", flush=True)
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    RuntimeError(f"Cannot open {disk.device_path}: {exc}"),
+                )
+            except Exception as exc:
+                print(f"[scanner] Exception: {type(exc).__name__}: {exc}", flush=True)
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    RuntimeError(str(exc)),
+                )
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
@@ -258,4 +272,6 @@ class MacDiskScanner:
             item = await queue.get()
             if item is None:
                 break
+            if isinstance(item, Exception):
+                raise item
             yield item

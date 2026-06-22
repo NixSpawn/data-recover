@@ -6,6 +6,7 @@ interface UseScanState {
   session: ScanSession | null;
   files: DeletedFile[];
   currentPath: string;
+  scannedPaths: string[];
   loading: boolean;
   error: string | null;
   startScan: (diskId: string) => Promise<void>;
@@ -16,6 +17,7 @@ export function useScan(): UseScanState {
   const [session, setSession] = useState<ScanSession | null>(null);
   const [files, setFiles] = useState<DeletedFile[]>([]);
   const [currentPath, setCurrentPath] = useState("");
+  const [scannedPaths, setScannedPaths] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -34,6 +36,8 @@ export function useScan(): UseScanState {
     async (diskId: string) => {
       stopStream();
       setFiles([]);
+      setCurrentPath("");
+      setScannedPaths([]);
       setError(null);
       setLoading(true);
 
@@ -41,7 +45,6 @@ export function useScan(): UseScanState {
         const newSession = await scanApi.start(diskId);
         setSession(newSession);
 
-        // Poll session status
         pollRef.current = setInterval(async () => {
           try {
             const updated = await scanApi.getSession(newSession.id);
@@ -54,7 +57,6 @@ export function useScan(): UseScanState {
           }
         }, 1000);
 
-        // Stream files via SSE
         const es = new EventSource(scanApi.streamUrl(newSession.id));
         eventSourceRef.current = es;
 
@@ -66,7 +68,18 @@ export function useScan(): UseScanState {
               return;
             }
             if (data.event === "progress") {
-              if (data.current_path) setCurrentPath(data.current_path);
+              if (data.status === "failed" && data.error_message) {
+                setError(data.error_message);
+              }
+              const path: string = data.current_path ?? "";
+              if (path) {
+                setCurrentPath(path);
+                setScannedPaths((prev) => {
+                  if (prev[prev.length - 1] === path) return prev;
+                  const next = [...prev, path];
+                  return next.length > 50 ? next.slice(-50) : next;
+                });
+              }
               return;
             }
             setFiles((prev) => [...prev, data as DeletedFile]);
@@ -100,5 +113,5 @@ export function useScan(): UseScanState {
 
   useEffect(() => () => stopStream(), [stopStream]);
 
-  return { session, files, currentPath, loading, error, startScan, cancelScan };
+  return { session, files, currentPath, scannedPaths, loading, error, startScan, cancelScan };
 }

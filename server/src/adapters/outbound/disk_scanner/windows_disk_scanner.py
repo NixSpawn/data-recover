@@ -9,10 +9,14 @@ from ....core.domain.entities.deleted_file import DeletedFile
 from ....core.domain.entities.disk import Disk, DiskType, FilesystemType
 
 _FILESYSTEM_MAP: dict[str, FilesystemType] = {
-    "NTFS": FilesystemType.NTFS,
-    "FAT32": FilesystemType.FAT32,
-    "exFAT": FilesystemType.EXFAT,
+    "ntfs": FilesystemType.NTFS,
+    "fat32": FilesystemType.FAT32,
+    "fat": FilesystemType.FAT32,
+    "exfat": FilesystemType.EXFAT,
 }
+
+# Drive types from Win32_LogicalDisk / Get-Volume
+_DRIVE_TYPE_REMOVABLE = {2, 5}  # 2=Removable, 5=CD-ROM
 
 
 def _powershell(cmd: str) -> str:
@@ -34,39 +38,48 @@ class WindowsDiskScanner:
         disks: list[Disk] = []
         try:
             raw = _powershell(
-                "Get-Volume | Where-Object {$_.DriveLetter -ne $null} | "
+                "Get-Volume | Where-Object {$_.DriveLetter -ne $null -and $_.DriveType -ne 'CD-ROM'} | "
                 "Select-Object DriveLetter, FileSystemLabel, FileSystem, SizeRemaining, Size, DriveType | "
                 "ConvertTo-Json -Depth 3"
             )
+            if not raw:
+                return disks
+
             volumes = json.loads(raw)
             if isinstance(volumes, dict):
                 volumes = [volumes]
 
             for vol in volumes:
-                letter = vol.get("DriveLetter", "")
+                letter = (vol.get("DriveLetter") or "").strip()
                 if not letter:
                     continue
 
-                fs_raw = vol.get("FileSystem") or "UNKNOWN"
+                fs_raw = (vol.get("FileSystem") or "").lower()
                 fs = _FILESYSTEM_MAP.get(fs_raw, FilesystemType.UNKNOWN)
 
-                total = vol.get("Size") or 0
-                free = vol.get("SizeRemaining") or 0
+                total = int(vol.get("Size") or 0)
+                if total == 0:
+                    continue
+
+                free = int(vol.get("SizeRemaining") or 0)
                 used = total - free
 
-                drive_type = vol.get("DriveType", 0)
-                disk_type = DiskType.REMOVABLE if drive_type in (2, 5) else DiskType.INTERNAL
+                drive_type = (vol.get("DriveType") or "").lower()
+                disk_type = DiskType.REMOVABLE if "removable" in drive_type else DiskType.INTERNAL
+
+                label = (vol.get("FileSystemLabel") or "").strip() or None
+                name = label or f"Local Disk ({letter}:)"
 
                 disks.append(Disk(
-                    id=letter,
-                    name=vol.get("FileSystemLabel") or f"Local Disk ({letter}:)",
-                    device_path=f"\\\\.\\{letter}:",
+                    id=letter.upper(),
+                    name=name,
+                    device_path=f"\\\\.\\{letter.upper()}:",
                     total_size=total,
                     used_size=used,
                     filesystem=fs,
                     disk_type=disk_type,
-                    mount_point=f"{letter}:\\",
-                    label=vol.get("FileSystemLabel"),
+                    mount_point=f"{letter.upper()}:\\",
+                    label=label,
                     is_system=(letter.upper() == "C"),
                 ))
         except Exception:
@@ -81,19 +94,12 @@ class WindowsDiskScanner:
         on_path: Callable[[str], None] | None = None,
     ) -> AsyncGenerator[DeletedFile, None]:
         loop = asyncio.get_event_loop()
-        queue: asyncio.Queue[DeletedFile | None] = asyncio.Queue()
+        queue: asyncio.Queue[DeletedFile | None | Exception] = asyncio.Queue()
 
-        def _scan():
-            try:
-                img = pytsk3.Img_Info(disk.device_path)
-                fs = pytsk3.FS_Info(img)
-                _walk(fs, fs.open_dir(path="/"), "/", disk, queue, loop)
-            except Exception:
-                pass
-            finally:
-                loop.call_soon_threadsafe(queue.put_nowait, None)
+        def _walk(fs, directory, path: str):
+            if on_path:
+                loop.call_soon_threadsafe(on_path, path)
 
-        def _walk(fs, directory, path: str, disk: Disk, q, lp):
             for entry in directory:
                 try:
                     name = entry.info.name.name.decode("utf-8", errors="replace")
@@ -118,16 +124,41 @@ class WindowsDiskScanner:
                             extension=ext,
                             is_recoverable=int(meta.size) > 0,
                         )
-                        lp.call_soon_threadsafe(q.put_nowait, df)
+                        loop.call_soon_threadsafe(queue.put_nowait, df)
 
                     if meta.type == pytsk3.TSK_FS_META_TYPE_DIR:
                         try:
                             sub = fs.open_dir(inode=int(meta.addr))
-                            _walk(fs, sub, f"{path}\\{name}", disk, q, lp)
+                            _walk(fs, sub, f"{path}\\{name}")
                         except Exception:
                             pass
+
                 except Exception:
                     continue
+
+        def _scan():
+            try:
+                print(f"[scanner] opening {disk.device_path}", flush=True)
+                img = pytsk3.Img_Info(disk.device_path)
+                print(f"[scanner] Img_Info OK, opening filesystem", flush=True)
+                fs = pytsk3.FS_Info(img)
+                print(f"[scanner] FS_Info OK, type={fs.info.ftype}, walking /", flush=True)
+                _walk(fs, fs.open_dir(path="/"), disk.mount_point or "\\")
+                print(f"[scanner] walk complete", flush=True)
+            except OSError as exc:
+                print(f"[scanner] OSError: {exc}", flush=True)
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    RuntimeError(f"Cannot open {disk.device_path}: {exc}"),
+                )
+            except Exception as exc:
+                print(f"[scanner] Exception: {type(exc).__name__}: {exc}", flush=True)
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    RuntimeError(str(exc)),
+                )
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
 
         loop.run_in_executor(None, _scan)
 
@@ -135,4 +166,6 @@ class WindowsDiskScanner:
             item = await queue.get()
             if item is None:
                 break
+            if isinstance(item, Exception):
+                raise item
             yield item

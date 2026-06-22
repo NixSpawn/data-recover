@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { ArrowUpDown, ScanSearch } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUpDown, FolderOpen, ScanSearch } from "lucide-react";
 import { cn } from "@/shared/components/ui/utils";
+import { useSettings } from "@/shared/context/SettingsContext";
 import type { DeletedFile, ScanSession } from "@/shared/types/common.types";
 
 function formatBytes(bytes: number): string {
@@ -19,11 +20,14 @@ interface FileListProps {
   onPreview: (file: DeletedFile) => void;
   session: ScanSession | null;
   currentPath: string;
+  scannedPaths: string[];
+  scanError?: string | null;
 }
 
 type SortKey = "name" | "size" | "modified_at" | "category";
 
-export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, onPreview, session, currentPath }: FileListProps) {
+export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, onPreview, session, currentPath, scannedPaths, scanError }: FileListProps) {
+  const { t } = useSettings();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -57,35 +61,17 @@ export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, o
             className="accent-primary w-3.5 h-3.5"
           />
         </div>
-        <ColHeader label="Name" flex="flex-1" sortKey="name" current={sortKey} asc={sortAsc} onSort={toggleSort} />
-        <ColHeader label="Date Modified" flex="w-36" sortKey="modified_at" current={sortKey} asc={sortAsc} onSort={toggleSort} />
-        <ColHeader label="Size" flex="w-24" sortKey="size" current={sortKey} asc={sortAsc} onSort={toggleSort} />
-        <ColHeader label="Type" flex="w-28" sortKey="category" current={sortKey} asc={sortAsc} onSort={toggleSort} />
-        <div className="w-48 flex-shrink-0 text-xs">Path</div>
+        <ColHeader label={t.fileList.name} flex="flex-1" sortKey="name" current={sortKey} onSort={toggleSort} />
+        <ColHeader label={t.fileList.dateModified} flex="w-36" sortKey="modified_at" current={sortKey} onSort={toggleSort} />
+        <ColHeader label={t.fileList.size} flex="w-24" sortKey="size" current={sortKey} onSort={toggleSort} />
+        <ColHeader label={t.fileList.type} flex="w-28" sortKey="category" current={sortKey} onSort={toggleSort} />
+        <div className="w-48 flex-shrink-0 text-xs">{t.fileList.path}</div>
       </div>
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
-            {session?.status === "running" || session?.status === "pending" ? (
-              <>
-                <div className="relative">
-                  <ScanSearch className="w-10 h-10 text-primary animate-pulse" />
-                </div>
-                <div className="text-center space-y-1">
-                  <p className="text-sm font-medium">Scanning for deleted files...</p>
-                  {currentPath && (
-                    <p className="text-xs font-mono text-muted-foreground max-w-xs truncate px-4">
-                      {currentPath}
-                    </p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No deleted files found</p>
-            )}
-          </div>
+          <ScanningState session={session} currentPath={currentPath} scannedPaths={scannedPaths} scanError={scanError} />
         ) : (
           sorted.map((file) => (
             <FileRow
@@ -103,10 +89,10 @@ export function FileList({ files, selectedInodes, onToggleSelect, onSelectAll, o
 }
 
 function ColHeader({
-  label, flex, sortKey, current, asc, onSort,
+  label, flex, sortKey, current, onSort,
 }: {
   label: string; flex: string; sortKey: SortKey;
-  current: SortKey; asc: boolean; onSort: (k: SortKey) => void;
+  current: SortKey; onSort: (k: SortKey) => void;
 }) {
   const active = current === sortKey;
   return (
@@ -124,6 +110,7 @@ function FileRow({ file, selected, onToggle, onPreview }: {
   file: DeletedFile; selected: boolean;
   onToggle: () => void; onPreview: () => void;
 }) {
+  const { t } = useSettings();
   return (
     <div
       onClick={onPreview}
@@ -148,7 +135,7 @@ function FileRow({ file, selected, onToggle, onPreview }: {
         <FileIcon extension={file.extension} />
         <span className="truncate text-sm">{file.name}</span>
         {!file.is_recoverable && (
-          <span className="text-xs text-amber-500 flex-shrink-0">Partial</span>
+          <span className="text-xs text-amber-500 flex-shrink-0">{t.scan.partial}</span>
         )}
       </div>
       <span className="w-36 flex-shrink-0 text-xs text-muted-foreground truncate">
@@ -181,6 +168,97 @@ function FileIcon({ extension }: { extension: string }) {
       <span className="text-[8px] font-bold leading-none">
         {extension.slice(0, 3).toUpperCase() || "?"}
       </span>
+    </div>
+  );
+}
+
+function ScanningState({
+  session,
+  currentPath,
+  scannedPaths,
+  scanError,
+}: {
+  session: ScanSession | null;
+  currentPath: string;
+  scannedPaths: string[];
+  scanError?: string | null;
+}) {
+  const { t } = useSettings();
+  const isScanning = session?.status === "running" || session?.status === "pending";
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [scannedPaths.length]);
+
+  if (scanError || session?.status === "failed") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-8 text-center">
+        <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+          <span className="text-red-500 text-lg">!</span>
+        </div>
+        <p className="text-sm font-medium text-red-500">{t.scan.scanFailed}</p>
+        <p className="text-xs text-muted-foreground font-mono break-all max-w-md">
+          {scanError || session?.error_message || "Unknown error"}
+        </p>
+      </div>
+    );
+  }
+
+  if (!isScanning) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-sm text-muted-foreground">{t.scan.noFilesFound}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-muted/20 flex-shrink-0">
+        <ScanSearch className="w-4 h-4 text-primary animate-pulse flex-shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{t.scan.scanning}</p>
+          {currentPath && (
+            <p className="text-xs font-mono text-muted-foreground truncate">{currentPath}</p>
+          )}
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+        </div>
+      </div>
+
+      {/* Scrolling path feed */}
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-0.5">
+        {scannedPaths.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">{t.scan.initializing}</p>
+        ) : (
+          scannedPaths.map((path, i) => {
+            const isLatest = i === scannedPaths.length - 1;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "flex items-center gap-2 py-0.5 text-xs font-mono rounded px-2 transition-colors",
+                  isLatest
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <FolderOpen className={cn("w-3 h-3 flex-shrink-0", isLatest ? "text-primary" : "text-muted-foreground/50")} />
+                <span className="truncate">{path}</span>
+                {isLatest && (
+                  <span className="ml-auto flex-shrink-0 text-[10px] text-primary/70">now</span>
+                )}
+              </div>
+            );
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }
