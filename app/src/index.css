@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 15% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 15%;
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 213 94% 55%;
+    --primary: 213 94% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 92%;
+    --secondary-foreground: 220 15% 30%;
+    --muted: 220 13% 94%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 213 94% 96%;
+    --accent-foreground: 213 94% 40%;
+    --radius: 0.5rem;
+    --sidebar: 220 22% 22%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-active: 213 94% 55%;
+    --sidebar-active-foreground: 0 0% 100%;
+    --sidebar-border: 220 22% 30%;
+  }
+
+  .dark {
+    --background: 220 22% 12%;
+    --foreground: 220 15% 90%;
+    --card: 220 22% 16%;
+    --card-foreground: 220 15% 90%;
+    --border: 220 22% 25%;
+    --input: 220 22% 25%;
+    --ring: 213 94% 55%;
+    --primary: 213 94% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 22% 20%;
+    --secondary-foreground: 220 15% 70%;
+    --muted: 220 22% 18%;
+    --muted-foreground: 220 10% 50%;
+    --accent: 213 94% 20%;
+    --accent-foreground: 213 94% 70%;
+    --sidebar: 220 22% 10%;
+    --sidebar-foreground: 220 15% 75%;
+    --sidebar-active: 213 94% 55%;
+    --sidebar-active-foreground: 0 0% 100%;
+    --sidebar-border: 220 22% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}

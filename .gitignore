@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+dist/
+*.egg-info/
+.ruff_cache/
+
+# Node / Tauri
+node_modules/
+app/dist/
+app/src-tauri/target/
+app/.tauri/
+
+# OS
+.DS_Store
+Thumbs.db
